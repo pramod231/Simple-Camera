@@ -1,18 +1,27 @@
 package com.simplemobiletools.camera.activities
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.hardware.SensorManager
 import android.hardware.camera2.CameraCharacteristics
+import android.location.Address
+import android.location.Geocoder
+import android.location.Location
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import android.util.Log
 import android.view.*
 import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.*
 import androidx.transition.*
@@ -20,6 +29,14 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.bumptech.glide.request.RequestOptions
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.OnMapReadyCallback
+import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.tabs.TabLayout
@@ -42,14 +59,42 @@ import com.simplemobiletools.commons.models.Release
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.layout_flash.*
 import kotlinx.android.synthetic.main.layout_top.*
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.TimeUnit
 
-class MainActivity : SimpleActivity(), PhotoProcessor.MediaSavedListener, CameraXPreviewListener {
+class MainActivity : SimpleActivity(), PhotoProcessor.MediaSavedListener, CameraXPreviewListener, OnMapReadyCallback {
+
     private companion object {
         const val CAPTURE_ANIMATION_DURATION = 500L
         const val PHOTO_MODE_INDEX = 1
         const val VIDEO_MODE_INDEX = 0
+        const val PERMISSION_REQUEST_ACCESS_LOCATION = 100
     }
+
+// location on camera
+    private lateinit var mapFragment: SupportMapFragment
+    private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
+    private lateinit var tvAddressTitle: TextView
+    private lateinit var tvFullAddress: TextView
+    private lateinit var tvLat: TextView
+    private lateinit var tvLong: TextView
+    private lateinit var tvDate: TextView
+
+    var addresses: List<Address>? = null
+   private lateinit var  geocoder: Geocoder
+   private lateinit var  mMap: GoogleMap
+
+    private var village: String = ""
+    private var state: String = ""
+    private var district: String = ""
+    private var country: String = ""
+    private var area: String = ""
+    private var lati: Double = 0.0
+    private var longi: Double = 0.0
+
+//location on camera
+
 
     lateinit var mTimerHandler: Handler
     private lateinit var defaultScene: Scene
@@ -72,6 +117,8 @@ class MainActivity : SimpleActivity(), PhotoProcessor.MediaSavedListener, Camera
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
+
         useDynamicTheme = false
         super.onCreate(savedInstanceState)
         appLaunched(BuildConfig.APPLICATION_ID)
@@ -98,6 +145,113 @@ class MainActivity : SimpleActivity(), PhotoProcessor.MediaSavedListener, Camera
                     WindowManager.LayoutParams.FLAG_FULLSCREEN
             )
         }
+    }
+
+    private fun getCurrentLocation() {
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+
+           requestPermission()
+        }
+
+        val task = fusedLocationProviderClient.lastLocation
+        task.addOnSuccessListener { location ->
+            if (location != null) {
+                mapFragment.getMapAsync(OnMapReadyCallback {
+                    var latLng = LatLng(location.latitude, location.longitude)
+                    mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 18f))
+
+
+                    lati = latLng.latitude
+                    longi = latLng.longitude
+
+                    addresses = geocoder.getFromLocation(lati, longi, 1)
+                    state = addresses!![0].adminArea
+                    district = addresses!![0].locality
+                    country = addresses!![0].countryName
+                    area =  addresses!![0].getAddressLine(0)
+
+                    val sdf = SimpleDateFormat("dd/M/yyyy")
+                    val currentDate = sdf.format(Date())
+
+
+
+                 tvDate.text = currentDate
+                    tvFullAddress.text = area
+                    tvAddressTitle.text = "$district, $state, $country"
+                    tvLat.text = "Lat ${lati}"
+                    tvLong.text = "Lat ${longi}"
+
+                    Log.e("getCurrentLocation", latLng.latitude.toString() + "-" + latLng.longitude)
+                })
+            }
+        }
+
+
+
+
+
+//        addresses = geocoder.getFromLocation(lati)
+
+
+
+//        fusedLocationProviderClient.lastLocation.addOnCompleteListener(this) { task ->
+//
+//            val location: Location? = task.result
+//            if (location == null) {
+//                Toast.makeText(this, "Failed to access location", Toast.LENGTH_LONG).show()
+//
+//              requestPermission()
+//
+//            } else {
+//
+//
+//
+//                val lat = location.latitude
+//                val long = location.longitude
+//
+//                lati = location.latitude
+//                longi = location.longitude
+//
+//                Log.i("OLDI","Lati is $lati & Longi is $longi")
+//                Log.i("OLDI","Lat is $lat & long is $long")
+//
+//                if ( lat.toInt() != 0 && long.toInt() != 0){
+//                    addresses = geocoder.getFromLocation(lat.toDouble(), long.toDouble(), 1)
+//                    state = addresses!![0].adminArea
+//                    district = addresses!![0].locality
+//                    country = addresses!![0].countryName
+//                    area =  addresses!![0].getAddressLine(0)
+//
+//                    val date = Calendar.getInstance().time
+//                    val formatter = SimpleDateFormat.getDateTimeInstance() //or use getDateInstance()
+//                    val formatedDate = formatter.format(date)
+//
+//
+////                tvDateTime.text = formatedDate
+//                    tvFullAddress.text = area
+//                    tvAddressTitle.text = "$district, $state, $country"
+//                    tvLat.text = "Lat ${location.latitude}"
+//                    tvLong.text = "Lat ${location.longitude}"
+//                }
+//
+//
+//
+//
+//            }
+//        }
+
+
+    }
+
+    private fun requestPermission() {
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION),
+            PERMISSION_REQUEST_ACCESS_LOCATION
+        )
     }
 
     private fun selectPhotoTab(triggerListener: Boolean = false) {
@@ -288,6 +442,30 @@ class MainActivity : SimpleActivity(), PhotoProcessor.MediaSavedListener, Camera
     private fun initializeCamera() {
         setContentView(R.layout.activity_main)
         initButtons()
+        requestPermission()
+
+        //        Initialization
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+        tvAddressTitle = findViewById(R.id.tvAddressTitle)
+        tvFullAddress = findViewById(R.id.tvFullAddress)
+        tvLat = findViewById(R.id.tvLat)
+        tvLong = findViewById(R.id.tvLong)
+        tvDate = findViewById(R.id.tvDate)
+
+        mapFragment = supportFragmentManager.findFragmentById(R.id.googleMapFragment) as SupportMapFragment
+        mapFragment.getMapAsync(this)
+
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+
+        getCurrentLocation()
+        geocoder = Geocoder(this@MainActivity)
+
+
+
+
+
+//        Initialization
+
         defaultScene = Scene(top_options, default_icons)
         flashModeScene = Scene(top_options, flash_toggle_group)
 
@@ -853,5 +1031,29 @@ class MainActivity : SimpleActivity(), PhotoProcessor.MediaSavedListener, Camera
             add(Release(52, R.string.release_52))
             checkWhatsNew(this, BuildConfig.VERSION_CODE)
         }
+    }
+
+    override fun onMapReady(googleMap: GoogleMap) {
+       mMap = googleMap
+        mMap.uiSettings.isMapToolbarEnabled = false
+        mMap.uiSettings.setAllGesturesEnabled(false)
+        mMap.mapType = GoogleMap.MAP_TYPE_HYBRID
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        mMap.isMyLocationEnabled = true
+
+        val currentLocation = LatLng(lati, longi)
+        Log.i("LATI", "latlong is $lati & Longi is $longi")
+
+        mMap.addMarker(MarkerOptions().position(currentLocation).visible(true))
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLocation, 10f))
+        mMap.moveCamera(CameraUpdateFactory.zoomIn())
+        mMap.animateCamera(CameraUpdateFactory.zoomTo(17f), 2000, null)
+
+
     }
 }

@@ -4,6 +4,11 @@
     package="com.simplemobiletools.camera"
     android:installLocation="auto">
 
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>/
+
     <uses-feature
         android:name="android.hardware.camera"
         android:required="true" />
@@ -125,6 +130,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/provider_paths" />
         </provider>
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyCiSh4VnnI1jemtZTytDoj2X7Wl6evey30"/>
+
 
         <activity-alias
             android:name=".activities.SplashActivity.Red"
